@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -677,6 +678,15 @@ func NewNode(config *cfg.Config,
 	}
 
 	stateStore := sm.NewStore(stateDB)
+	responses, err := stateStore.LoadABCIResponses(197733)
+	if err != nil {
+		return nil, err
+	}
+	marshal, err := json.Marshal(responses)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("NewNode", "blockResponses", string(marshal))
 
 	state, genDoc, err := LoadStateFromDBOrGenesisDocProvider(stateDB, genesisDocProvider)
 	if err != nil {

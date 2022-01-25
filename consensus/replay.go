@@ -2,6 +2,7 @@ package consensus
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -298,7 +299,8 @@ func (h *Handshaker) ReplayBlocks(
 		storeBlockHeight,
 		"stateHeight",
 		stateBlockHeight)
-
+	marshal, _ := json.Marshal(h.store.LoadBlock(storeBlockHeight))
+	h.logger.Info("ReplayBlocks", "block", string(marshal))
 	// If appBlockHeight == 0 it means that we are at genesis and hence should send InitChain.
 	if appBlockHeight == 0 {
 		validators := make([]*types.Validator, len(h.genDoc.Validators))
