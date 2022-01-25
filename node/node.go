@@ -681,7 +681,7 @@ func NewNode(config *cfg.Config,
 	}
 
 	stateStore := sm.NewStore(stateDB)
-	blockHeight, err := strconv.ParseInt(os.ExpandEnv("FX_DEBUG_BLOCK"), 10, 64)
+	blockHeight, err := strconv.ParseInt(os.ExpandEnv("$FX_DEBUG_BLOCK"), 10, 64)
 	if err != nil {
 		return nil, err
 	}
