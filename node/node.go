@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	coretypes "github.com/tendermint/tendermint/rpc/core/types"
 	"net"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -678,15 +681,93 @@ func NewNode(config *cfg.Config,
 	}
 
 	stateStore := sm.NewStore(stateDB)
-	responses, err := stateStore.LoadABCIResponses(197733)
+	blockHeight, err := strconv.ParseInt(os.ExpandEnv("FX_DEBUG_BLOCK"), 10, 64)
 	if err != nil {
 		return nil, err
 	}
-	marshal, err := json.Marshal(responses)
+	responses, err := stateStore.LoadABCIResponses(blockHeight)
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("NewNode", "blockResponses", string(marshal))
+	blockResults := coretypes.ResultBlockResults{
+		Height:                blockHeight,
+		TxsResults:            responses.DeliverTxs,
+		BeginBlockEvents:      responses.BeginBlock.Events,
+		EndBlockEvents:        responses.EndBlock.Events,
+		ValidatorUpdates:      responses.EndBlock.ValidatorUpdates,
+		ConsensusParamUpdates: responses.EndBlock.ConsensusParamUpdates,
+	}
+	var beginBlockEvents []map[string]interface{}
+	for _, event := range blockResults.BeginBlockEvents {
+		var attributes []map[string]interface{}
+		for _, attribute := range event.Attributes {
+			attributes = append(attributes, map[string]interface{}{
+				"Index": attribute.Index,
+				"Key":   string(attribute.Key),
+				"Value": string(attribute.Value),
+			})
+		}
+		beginBlockEvents = append(beginBlockEvents, map[string]interface{}{
+			"type":       event.Type,
+			"attributes": attributes,
+		})
+	}
+	var endBlockEvents []map[string]interface{}
+	for _, event := range blockResults.EndBlockEvents {
+		var attributes []map[string]interface{}
+		for _, attribute := range event.Attributes {
+			attributes = append(attributes, map[string]interface{}{
+				"Index": attribute.Index,
+				"Key":   string(attribute.Key),
+				"Value": string(attribute.Value),
+			})
+		}
+		endBlockEvents = append(endBlockEvents, map[string]interface{}{
+			"type":       event.Type,
+			"attributes": attributes,
+		})
+	}
+	var txsResults []map[string]interface{}
+	for _, txResult := range blockResults.TxsResults {
+		var txResultEvents []map[string]interface{}
+		for _, event := range txResult.Events {
+			var attributes []map[string]interface{}
+			for _, attribute := range event.Attributes {
+				attributes = append(attributes, map[string]interface{}{
+					"Index": attribute.Index,
+					"Key":   string(attribute.Key),
+					"Value": string(attribute.Value),
+				})
+			}
+			txResultEvents = append(txResultEvents, map[string]interface{}{
+				"type":       event.Type,
+				"attributes": attributes,
+			})
+		}
+		txsResults = append(txsResults, map[string]interface{}{
+			"code":       txResult.Code,
+			"data":       string(txResult.Data),
+			"log":        txResult.Log,
+			"info":       txResult.Info,
+			"gas_wanted": txResult.GasWanted,
+			"gas_used":   txResult.GasUsed,
+			"events":     txResultEvents,
+			"codespace":  txResult.Codespace,
+		})
+	}
+
+	output, err := json.Marshal(map[string]interface{}{
+		"Height":                blockResults.Height,
+		"ConsensusParamUpdates": "Is not set",
+		"BeginBlockEvents":      beginBlockEvents,
+		"EndBlockEvents":        endBlockEvents,
+		"TxsResults":            txsResults,
+		"ValidatorUpdates":      "Is not set",
+	})
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("NewNode", "blockResponses", string(output))
 
 	state, genDoc, err := LoadStateFromDBOrGenesisDocProvider(stateDB, genesisDocProvider)
 	if err != nil {
