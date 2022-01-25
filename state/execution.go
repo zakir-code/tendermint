@@ -132,10 +132,6 @@ func (blockExec *BlockExecutor) ApplyBlock(
 	state State, blockID types.BlockID, block *types.Block,
 ) (State, int64, error) {
 
-	if err := validateBlock(state, block); err != nil {
-		return state, 0, ErrInvalidBlock(err)
-	}
-
 	startTime := time.Now().UnixNano()
 	abciResponses, err := execBlockOnProxyApp(
 		blockExec.logger, blockExec.proxyApp, block, blockExec.store, state.InitialHeight,
@@ -144,6 +140,10 @@ func (blockExec *BlockExecutor) ApplyBlock(
 	blockExec.metrics.BlockProcessingTime.Observe(float64(endTime-startTime) / 1000000)
 	if err != nil {
 		return state, 0, ErrProxyAppConn(err)
+	}
+	fmt.Println("--------------->", abciResponses.String())
+	if err := validateBlock(state, block); err != nil {
+		return state, 0, ErrInvalidBlock(err)
 	}
 
 	fail.Fail() // XXX
